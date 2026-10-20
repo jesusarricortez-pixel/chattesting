@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lowe's Pro Chat Simulator</title>
+    <style>
+        :root {
+            --lowes-blue: #004990;
+            --lowes-dark: #003366;
+            --bg-color: #f4f5f7;
+            --panel-bg: #ffffff;
+            --text-main: #333333;
+            --border-color: #e1e4e8;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color); margin: 0; padding: 0;
+            display: flex; height: 100vh; color: var(--text-main);
+        }
+
+        .app-header {
+            position: absolute; top: 0; width: 100%; height: 50px;
+            background-color: var(--lowes-blue); color: white; display: flex;
+            align-items: center; padding: 0 20px; font-weight: bold; font-size: 1.2rem;
+            z-index: 100;
+        }
+
+        .container { display: flex; width: 100%; margin-top: 50px; height: calc(100vh - 50px); }
+
+        .column {
+            background-color: var(--panel-bg); margin: 15px; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; flex-direction: column;
+            overflow: hidden; border: 1px solid var(--border-color);
+        }
+
+        .col-left { flex: 1; }
+        .col-center { flex: 2; background-color: transparent; box-shadow: none; border: none; align-items: center; justify-content: flex-end;}
+        .col-right { flex: 1; }
+
+        .panel-header {
+            background-color: #f8f9fa; padding: 15px; border-bottom: 1px solid var(--border-color);
+            font-weight: bold; color: var(--lowes-blue);
+        }
+
+        .panel-content { padding: 15px; overflow-y: auto; flex: 1; }
+
+        .cust-info p { margin: 5px 0; font-size: 0.9rem; }
+        .cust-info span { font-weight: bold; color: #555; }
+        .cart-item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; font-size: 0.85rem; background: #fafafa;}
+        .cart-item a { color: var(--lowes-blue); text-decoration: none; font-weight: bold; }
+
+        .chat-window {
+            width: 100%; max-width: 550px; height: 600px; background-color: white;
+            border-radius: 10px 10px 0 0; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column; border: 1px solid var(--border-color);
+        }
+
+        .chat-header {
+            background-color: var(--lowes-blue); color: white; padding: 15px;
+            border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center;
+        }
+        .chat-header button { background: #d32f2f; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight:bold;}
+
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background-color: #fcfcfc; display: flex; flex-direction: column; gap: 10px; }
+
+        .message { max-width: 80%; padding: 10px 15px; border-radius: 18px; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; }
+        .msg-customer { background-color: #e9ecef; color: #333; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .msg-agent { background-color: var(--lowes-blue); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .msg-system { background-color: transparent; color: #888; align-self: center; font-size: 0.8rem; font-style: italic; text-align: center;}
+
+        .chat-input-area { display: flex; padding: 15px; border-top: 1px solid var(--border-color); background: white; }
+        .chat-input-area input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 0.95rem;}
+        .chat-input-area button { background-color: var(--lowes-blue); color: white; border: none; padding: 10px 20px; margin-left: 10px; border-radius: 20px; cursor: pointer; font-weight:bold;}
+
+        .whisper-card { padding: 10px; margin-bottom: 10px; font-size: 0.85rem; border-radius: 4px; border-left: 4px solid #aaa; background-color: #f0f0f0; }
+        .whisper-card.pass { background-color: #d4edda; border-left-color: #28a745; color: #155724; }
+        .whisper-card.missed { background-color: #f8d7da; border-left-color: #dc3545; color: #721c24; }
+        .whisper-card.tip { background-color: #fff3cd; border-left-color: #ffc107; color: #856404; }
+        .pillar { font-weight: bold; margin-bottom: 5px; display: block; font-size: 0.9rem;}
+        
+        .typing-indicator { display: none; align-self: flex-start; font-size: 0.8rem; color: #666; margin-left: 15px; margin-bottom: 10px; font-style: italic;}
+    </style>
+</head>
+<body>
+
+    <div class="app-header">Lowe's Customer Care Workspace</div>
+
+    <div class="container">
+        <!-- LEFT PANEL -->
+        <div class="column col-left">
+            <div class="panel-header">Customer Profile & Cart</div>
+            <div class="panel-content" id="customer-info-container"></div>
+        </div>
+
+        <!-- CENTER PANEL -->
+        <div class="column col-center">
+            <div class="chat-window">
+                <div class="chat-header">
+                    <span id="chat-title">Loading...</span>
+                    <button onclick="nextScenario()">End & Next Chat</button>
+                </div>
+                <div class="chat-messages" id="chat-messages"></div>
+                <div class="typing-indicator" id="typing-indicator">Customer is typing...</div>
+                <div class="chat-input-area">
+                    <input type="text" id="agent-input" placeholder="Type your response here..." onkeypress="handleEnter(event)" disabled>
+                    <button id="send-btn" onclick="sendAgentMessage()" disabled>Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="column col-right">
+            <div class="panel-header">Real-time QA Whispers</div>
+            <div class="panel-content" id="whispers-container">
+                <div class="whisper-card tip">
+                    <span class="pillar">System Ready</span>
+                    Evaluating based on Lowe's Flow: Greeting -> Acknowledgment -> Probing -> Resolution. Empathy required every turn.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Clave API integrada directamente
+        const API_KEY = "AQ.Ab8RN6K8u7WVaQOle0bKbaX1g8GewxRBu9QHAouOHOC4woan7g";
+        let chatHistory = [];
+        let idleTimer;
+
+        const products = {
+            fridge: { title: "Frigidaire 25.6-cu ft Side-by-Side Refrigerator FRSS26L3AF", url: "https://www.lowes.com/pd/Frigidaire-25-6-cu-ft-Side-by-Side-Refrigerator-with-Ice-Maker-Fingerprint-Resistant-Stainless-Steel-ENERGY-STAR/5001964897" },
+            dishwasher: { title: "Frigidaire 24-in Top Control Built-In Dishwasher FDPH431LAF", url: "https://www.lowes.com/pd/Frigidaire-24-in-Top-Control-Built-In-Dishwasher-Fingerprint-Resistant-Stainless-Steel-ENERGY-STAR-52-dBA/5013184647" },
+            battery: { title: "DEWALT 20-V 2-Pack Lithium-ion Battery DCB205-2C", url: "https://www.lowes.com/pd/DEWALT-20-V-2-Pack-Lithium-ion-Battery/1000218533" },
+            drone: { title: "Contixo Drones 12-mp Drone F28", url: "https://www.lowes.com/pd/Contixo-Drones-12-mp-Drone/5013824555" }
+        };
+
+        const scenarios = [
+            {
+                name: "Sarah Jenkins", type: "Indecisive, asks lots of questions",
+                address: "4102 Oak Lawn Ave", zip: "75219", state: "Texas", cart: [products.fridge],
+                initialPrompt: "You are looking at the Frigidaire fridge. Start the chat by asking for the exact width with hinges because your space is tight. Be a bit hesitant."
+            },
+            {
+                name: "Mike Peterson", type: "Angry, direct, impatient",
+                address: "8801 N Central Expy", zip: "75231", state: "Texas", cart: [products.dishwasher],
+                initialPrompt: "You are trying to buy a dishwasher. Start the chat complaining that the website isn't applying your military discount. Demand immediate help."
+            },
+            {
+                name: "Emily Davis", type: "Calm, looking for deals",
+                address: "1250 E Copans Rd", zip: "33064", state: "Florida", cart: [products.battery, products.drone],
+                initialPrompt: "You want to buy Dewalt batteries and a drone. Start the chat asking politely how to split the order so the batteries are store pickup and drone is shipped, and ask where to put your gift card."
+            }
+        ];
+
+        let currentScenarioIdx = 0;
+        let currentScenario = null;
+
+        // Iniciar el simulador automáticamente al cargar la página
+        window.onload = () => {
+            loadScenario();
+        };
+
+        function loadScenario() {
+            if (currentScenarioIdx >= scenarios.length) {
+                alert("All scenarios completed. Refresh to restart.");
+                return;
+            }
+
+            currentScenario = scenarios[currentScenarioIdx];
+            chatHistory = []; 
+            
+            document.getElementById('chat-messages').innerHTML = '';
+            document.getElementById('whispers-container').innerHTML = '';
+            document.getElementById('agent-input').disabled = false;
+            document.getElementById('send-btn').disabled = false;
+
+            let cartHTML = currentScenario.cart.map(item => `
+                <div class="cart-item">
+                    <a href="${item.url}" target="_blank">${item.title}</a>
+                </div>
+            `).join('');
+            
+            document.getElementById('customer-info-container').innerHTML = `
+                <div class="cust-info">
+                    <p><span>Name:</span> ${currentScenario.name}</p>
+                    <p><span>Address:</span> ${currentScenario.address}</p>
+                    <p><span>Zip Code:</span> ${currentScenario.zip} (${currentScenario.state})</p>
+                    <p><span>Persona:</span> ${currentScenario.type}</p>
+                </div>
+                <hr style="border:0; border-top:1px solid #ddd; margin:15px 0;">
+                <p><span>Active Cart:</span></p>
+                ${cartHTML}
+            `;
+
+            document.getElementById('chat-title').innerText = `Chatting with ${currentScenario.name}`;
+            generateAIResponse(true);
+        }
+
+        function nextScenario() {
+            currentScenarioIdx++;
+            clearTimeout(idleTimer);
+            loadScenario();
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendAgentMessage();
+        }
+
+        async function sendAgentMessage() {
+            const inputField = document.getElementById('agent-input');
+            const text = inputField.value.trim();
+            if (!text) return;
+
+            appendMessage('agent', text);
+            inputField.value = '';
+            chatHistory.push({ role: "user", content: `Agent: ${text}` });
+
+            clearTimeout(idleTimer);
+            await generateAIResponse(false);
+        }
+
+        function appendMessage(sender, text) {
+            const chatBox = document.getElementById('chat-messages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message msg-${sender}`;
+            msgDiv.innerText = text;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(async () => {
+                chatHistory.push({ role: "user", content: `System: Agent has not replied for 2 minutes. Generate a short, realistic customer message asking if the agent is still there based on the customer persona.` });
+                await generateAIResponse(false, true);
+            }, 120000); 
+        }
+
+        async function generateAIResponse(isFirstMessage = false, isIdleTrigger = false) {
+            document.getElementById('typing-indicator').style.display = 'block';
+            
+            const systemInstruction = `
+            You are a backend system running a Lowe's Call Center Chat Simulator. Act as TWO entities simultaneously and output a raw JSON object.
+            
+            Entity 1: The Customer. 
+            Name: ${currentScenario.name}. Personality: ${currentScenario.type}. 
+            Cart: ${currentScenario.cart.map(i => i.title).join(', ')}. Zip: ${currentScenario.zip}.
+            Rules for Customer: Respond to the Agent realistically, one short message at a time. If the agent is rude, get angry. Keep the conversation moving.
+            ${isFirstMessage ? "Instruction for this turn: " + currentScenario.initialPrompt : ""}
+
+            Entity 2: The QA Coach.
+            Rules for Coach: Evaluate the Agent's LAST message based strictly on this Lowe's Call Flow:
+            1. Flow Phase: Greeting -> Acknowledgment -> Probing Questions -> Resolution / Willingness to assist.
+            2. Empathy: The agent MUST show empathy in EVERY interaction, not just the first one.
+            3. Closing the Sale: If the agent is setting up the order/sale, they MUST provide:
+               - The "Text to pay" option.
+               - Security Terms and Conditions (T&C).
+               - A summary breakdown of the items.
+               - Upselling (Better Together/LPP) using an Assumptive and Positive tone.
+            Evaluate strictly based on what stage of the conversation they are in.
+            
+            OUTPUT FORMAT MUST BE EXACTLY THIS JSON (no markdown tags):
+            {
+                "customer_reply": "string (the customer's message)",
+                "coach_whispers": [
+                    { "pillar": "Flow / Empathy / Text-to-Pay / Assumptive / T&C", "status": "pass or missed or tip", "message": "Short explanation of the QA feedback" }
+                ]
+            }`;
+
+            let apiMessages = [
+                { role: "user", parts: [{ text: systemInstruction }] }
+            ];
+
+            chatHistory.forEach(msg => {
+                apiMessages.push({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] });
+            });
+
+            if (isFirstMessage) {
+                apiMessages.push({ role: "user", parts: [{ text: "System: Start the conversation as the customer." }] });
+            }
+
+            try {
+                // Utilizando gemini-1.5-flash, el modelo estándar y estable para la API pública
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: apiMessages })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error.message);
+                }
+
+                let textResponse = data.candidates[0].content.parts[0].text;
+                textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsedResponse = JSON.parse(textResponse);
+
+                document.getElementById('typing-indicator').style.display = 'none';
+
+                appendMessage('customer', parsedResponse.customer_reply);
+                chatHistory.push({ role: "model", content: `Customer: ${parsedResponse.customer_reply}` });
+
+                if (!isFirstMessage && !isIdleTrigger && parsedResponse.coach_whispers) {
+                    const whispersDiv = document.getElementById('whispers-container');
+                    let whisperHTML = parsedResponse.coach_whispers.map(w => `
+                        <div class="whisper-card ${w.status}">
+                            <span class="pillar">${w.pillar}</span>
+                            ${w.message}
+                        </div>
+                    `).join('');
+                    whispersDiv.innerHTML = whisperHTML;
+                }
+
+                resetIdleTimer();
+
+            } catch (error) {
+                console.error("API Error:", error);
+                document.getElementById('typing-indicator').style.display = 'none';
+                appendMessage('system', "Error de conexión: " + error.message + ".");
+            }
+        }
+    </script>
+</body>
+</html>
