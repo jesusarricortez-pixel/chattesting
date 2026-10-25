@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lowe's Pro Chat Simulator</title>
+<style>
+:root{--lowes-blue:#004990;--bg-color:#f4f5f7;--panel-bg:#fff;--text-main:#333;--border-color:#e1e4e8}
+*{box-sizing:border-box}
+body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:var(--bg-color);margin:0;display:flex;height:100vh;color:var(--text-main)}
+.app-header{position:absolute;top:0;width:100%;height:50px;background:var(--lowes-blue);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-weight:bold;font-size:1.2rem;z-index:100}
+.app-header small{font-weight:normal;font-size:.75rem;opacity:.85;margin-right:10px}
+.app-header button{background:#fff;color:var(--lowes-blue);border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:.8rem}
+.container{display:flex;width:100%;margin-top:50px;height:calc(100vh - 50px)}
+.column{background:var(--panel-bg);margin:15px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.05);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border-color)}
+.col-left,.col-right{flex:1}
+.col-center{flex:2;background:transparent;box-shadow:none;border:none;align-items:center;justify-content:flex-end;overflow:visible}
+.panel-header{background:#f8f9fa;padding:15px;border-bottom:1px solid var(--border-color);font-weight:bold;color:var(--lowes-blue)}
+.panel-content{padding:15px;overflow-y:auto;flex:1}
+.cust-info p{margin:5px 0;font-size:.9rem}
+.cust-info span,.panel-content>p span{font-weight:bold;color:#555}
+.cart-item{border:1px solid #ddd;padding:10px;margin-bottom:10px;border-radius:5px;font-size:.85rem;background:#fafafa}
+.cart-item a{color:var(--lowes-blue);text-decoration:none;font-weight:bold}
+.chat-window{width:100%;max-width:550px;height:600px;max-height:100%;background:#fff;border-radius:10px 10px 0 0;box-shadow:0 5px 15px rgba(0,0,0,.2);display:flex;flex-direction:column;border:1px solid var(--border-color)}
+.chat-header{background:var(--lowes-blue);color:#fff;padding:15px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.chat-header button{background:#d32f2f;color:#fff;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:bold}
+.chat-messages{flex:1;padding:15px;overflow-y:auto;background:#fcfcfc;display:flex;flex-direction:column;gap:10px}
+.message{max-width:80%;padding:10px 15px;border-radius:18px;font-size:.9rem;line-height:1.4;word-wrap:break-word;white-space:pre-wrap}
+.msg-customer{background:#e9ecef;align-self:flex-start;border-bottom-left-radius:2px}
+.msg-agent{background:var(--lowes-blue);color:#fff;align-self:flex-end;border-bottom-right-radius:2px}
+.msg-system{color:#888;align-self:center;font-size:.8rem;font-style:italic;text-align:center;max-width:95%}
+.msg-error{color:#b71c1c;align-self:center;font-size:.8rem;text-align:center;max-width:95%;background:#fdecea;border-radius:8px}
+.typing-indicator{display:none;font-size:.8rem;color:#666;margin:0 15px 10px;font-style:italic}
+.chat-input-area{display:flex;padding:15px;border-top:1px solid var(--border-color);background:#fff}
+.chat-input-area input{flex:1;padding:10px 14px;border:1px solid #ccc;border-radius:20px;outline:none;font-size:.95rem}
+.chat-input-area button{background:var(--lowes-blue);color:#fff;border:none;padding:10px 20px;margin-left:10px;border-radius:20px;cursor:pointer;font-weight:bold}
+.chat-input-area button:disabled,.chat-input-area input:disabled{opacity:.55;cursor:not-allowed}
+.turn-head{font-size:.75rem;color:#666;margin:12px 0 6px;padding-top:8px;border-top:1px dashed #ccc}
+.turn-head:first-child{border-top:none;margin-top:0;padding-top:0}
+.whisper-card{padding:10px;margin-bottom:8px;font-size:.85rem;border-radius:4px;border-left:4px solid #aaa;background:#f0f0f0}
+.whisper-card.pass{background:#d4edda;border-left-color:#28a745;color:#155724}
+.whisper-card.missed{background:#f8d7da;border-left-color:#dc3545;color:#721c24}
+.whisper-card.tip{background:#fff3cd;border-left-color:#ffc107;color:#856404}
+.pillar{font-weight:bold;margin-bottom:4px;display:block;font-size:.9rem}
+.app-header button.gear{background:transparent;color:#fff;font-size:1.15rem;padding:4px 8px;opacity:.8}
+.app-header button.gear:hover{opacity:1}
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.modal{background:#fff;border-radius:10px;padding:24px;width:100%;max-width:440px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.modal h2{margin:0 0 8px;color:var(--lowes-blue);font-size:1.15rem}
+.modal p{margin:0 0 14px;font-size:.88rem;line-height:1.4;color:#555}
+.modal input{width:100%;padding:10px 14px;border:1px solid #ccc;border-radius:8px;font-size:.95rem;outline:none}
+.modal input:focus{border-color:var(--lowes-blue)}
+.modal-msg{min-height:1.2em;margin:8px 0;font-size:.82rem;color:#b71c1c}
+.modal-actions{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.modal-actions .spacer{flex:1}
+.modal-actions button{background:var(--lowes-blue);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:bold}
+.modal-actions button.secondary{background:#e9ecef;color:#333}
+.modal-actions button.danger{background:transparent;color:#b71c1c;padding:9px 0;font-weight:normal;font-size:.8rem;text-decoration:underline}
+.modal a{font-size:.8rem;color:var(--lowes-blue)}
+.flow-bar{display:none;padding:8px 15px;font-size:.8rem;border-bottom:1px solid var(--border-color);font-weight:bold}
+.flow-bar.ok{display:block;background:#e8f5e9;color:#1b5e20}
+.flow-bar.warn{display:block;background:#fff3cd;color:#7a5b00;animation:flash 1s 2}
+.flow-bar.bad{display:block;background:#f8d7da;color:#721c24;animation:flash 1s 2}
+@keyframes flash{50%{opacity:.45}}
+.flow-phase{font-size:.68rem;font-weight:bold;color:#888;text-transform:uppercase;margin:10px 0 4px}
+.flow-step{display:flex;gap:6px;font-size:.76rem;padding:4px 6px;border-radius:4px;margin-bottom:3px;background:#f4f5f7;color:#666;cursor:help}
+.flow-step b{min-width:38px}
+.flow-step.done{background:#d4edda;color:#155724}
+.flow-step.skipped{background:#fff3cd;color:#856404}
+.flow-step.current{background:#cfe2ff;color:#052c65;outline:2px solid #0d6efd}
+</style>
+</head>
+<body>
+<div class="app-header">
+  <span>Lowe's Customer Care Workspace</span>
+  <span><small id="model-status">Model: detecting…</small><button class="gear" onclick="openKeyModal()" title="Configurar API key" aria-label="Configurar API key">⚙️</button></span>
+</div>
+
+<div class="container">
+  <div class="column col-left">
+    <div class="panel-header">Customer Profile &amp; Cart</div>
+    <div class="panel-content" id="customer-info-container"></div>
+  </div>
+
+  <div class="column col-center">
+    <div class="chat-window">
+      <div class="chat-header">
+        <span id="chat-title">Loading...</span>
+        <button onclick="nextScenario()">End &amp; Next Chat</button>
+      </div>
+      <div class="flow-bar" id="flow-bar"></div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="typing-indicator" id="typing-indicator">Customer is typing...</div>
+      <div class="chat-input-area">
+        <input type="text" id="agent-input" placeholder="Type your response here..." onkeydown="if(event.key==='Enter')sendAgentMessage()" disabled>
+        <button id="send-btn" onclick="sendAgentMessage()" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="column col-right">
+    <div class="panel-header">Real-time QA Whispers</div>
+    <div class="panel-content" id="whispers-container"></div>
+  </div>
+</div>
+
+<div id="key-modal" class="modal-backdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="key-title">
+    <h2 id="key-title">Google Gemini API key</h2>
+    <p>Pega tu API key para activar el simulador. Se guarda solo en este navegador (localStorage) y nunca queda escrita en el código de la página.</p>
+    <input type="password" id="key-input" placeholder="Pega tu API key aquí" autocomplete="off" onkeydown="if(event.key==='Enter')saveKey()">
+    <div id="key-msg" class="modal-msg"></div>
+    <div class="modal-actions">
+      <button id="key-delete" class="danger" onclick="deleteKey()">Borrar clave guardada</button>
+      <span class="spacer"></span>
+      <button class="secondary" onclick="testKey()">Probar</button>
+      <button id="key-cancel" class="secondary" onclick="closeKeyModal()">Cancelar</button>
+      <button onclick="saveKey()">Guardar</button>
+    </div>
+    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Obtener una key en Google AI Studio</a>
+  </div>
+</div>
+
+<script>
+// ---------- CONFIGURACIÓN ----------
+// La API key NO va en el código: se pide en un modal (⚙️) y se guarda en localStorage.
+const API = "https://generativelanguage.googleapis.com/v1beta";
+const FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
+const IDLE_MS = 120000; // 2 minutos sin respuesta del agente
+
+const products = {
+  fridge: { title: "Frigidaire 25.6-cu ft Side-by-Side Refrigerator FRSS26L3AF", url: "https://www.lowes.com/pd/Frigidaire-25-6-cu-ft-Side-by-Side-Refrigerator-with-Ice-Maker-Fingerprint-Resistant-Stainless-Steel-ENERGY-STAR/5001964897" },
+  dishwasher: { title: "Frigidaire 24-in Top Control Built-In Dishwasher FDPH431LAF", url: "https://www.lowes.com/pd/Frigidaire-24-in-Top-Control-Built-In-Dishwasher-Fingerprint-Resistant-Stainless-Steel-ENERGY-STAR-52-dBA/5013184647" },
+  battery: { title: "DEWALT 20-V 2-Pack Lithium-ion Battery DCB205-2C", url: "https://www.lowes.com/pd/DEWALT-20-V-2-Pack-Lithium-ion-Battery/1000218533" },
+  drone: { title: "Contixo Drones 12-mp Drone F28", url: "https://www.lowes.com/pd/Contixo-Drones-12-mp-Drone/5013824555" }
+};
+
+const scenarios = [
+  {
+    name: "Sarah Jenkins", type: "Indecisive, hesitant, asks lots of questions",
+    address: "4102 Oak Lawn Ave", zip: "75219", state: "Texas", cart: [products.fridge],
+    opening: "Ask for the exact width of the fridge including the hinges, because your space is tight. Sound a bit hesitant.",
+    persona: "You are replacing an old fridge in a tight kitchen alcove that is about 36 inches wide (you are not sure of depth). You worry about making the wrong choice, ask follow-up questions (ice maker, delivery, haul-away of the old unit, return policy), and second-guess yourself. You decide only when the agent guides you with clear, confident recommendations."
+  },
+  {
+    name: "Mike Peterson", type: "Angry, direct, impatient",
+    address: "8801 N Central Expy", zip: "75231", state: "Texas", cart: [products.dishwasher],
+    opening: "Complain that the website is not applying your military discount and demand immediate help.",
+    persona: "You are a veteran and already tried to apply your military discount twice; this is the third time you are dealing with it. You are short, blunt and impatient, hate scripted replies and being put on hold without updates. You threaten to cancel the order and buy elsewhere if you feel ignored. If the agent apologizes sincerely, takes ownership and gives clear steps with a time frame, you calm down gradually."
+  },
+  {
+    name: "Emily Davis", type: "Calm, polite, looking for deals",
+    address: "1250 E Copans Rd", zip: "33064", state: "Florida", cart: [products.battery, products.drone],
+    opening: "Politely ask how to split the order so the DEWALT batteries are store pickup and the drone is shipped, and ask where to enter your gift card.",
+    persona: "You are friendly and value-minded: you like saving money, ask about price matching, free shipping and where to apply the gift card. You are open to add-ons or a protection plan only when the agent presents them confidently and explains the real value; you dislike pushy or vague offers."
+  }
+];
+
+// ---------- BASE DE DATOS: LOWE'S SALES CALL FLOW (PDF "Optimized CSR Guide") ----------
+// core = paso que casi siempre debe aparecer en una venta; el resto es situacional (varía según el caso).
+const CALL_FLOW = [
+  { id: 1, steps: "01", phase: 1, core: true, title: "Initial Greeting",
+    script: `Thank you for contacting Lowes, this is [Name of the CSR]. How can I help you?`,
+    rule: `Mandatory corporate standard.` },
+  { id: 2, steps: "02", phase: 1, core: true, title: "Request Acknowledgment & Sales Assisting Commitment",
+    script: `Thanks a lot for reaching out today, [Customer Name]! I'd be delighted to help you find and order the exact item you're looking for. You've come to the right specialist, and I'll make sure we get everything set up smoothly for you today.`,
+    rule: `Build immediate buying momentum by confirming you will personally take care of their entire purchase.` },
+  { id: 3, steps: "03", phase: 1, title: "Product Availability Check OR Sales Consultation Path",
+    script: `Direct Purchase Path: "That's an excellent choice! Let me immediately check live inventory for you so we can secure your item and lock in your order right now." Assisted Shopping Path: "I'd love to help you find the absolute best item for your project! To ensure we get the perfect model that fits your needs and budget, do you mind if I ask a few quick questions?"`,
+    rule: `Two paths: customer already knows the item (check inventory) or needs help shopping (ask questions).` },
+  { id: 4, steps: "04", phase: 1, title: "Consultative Sales Discovery (Help Me Shop)",
+    script: `To make sure I present the top options for your home, what specific brand, finish or color, exact size measurements, and target budget do you have in mind? Also, are there any must-have features you'd like included?`,
+    rule: `Only for the Assisted Shopping Path. Use the answers to pitch the top 2 matching products, focusing on value over just price.` },
+  { id: 5, steps: "05", phase: 1, title: "System Reservation Hold & Expectation Setting",
+    script: `I'm accessing our ordering system right now to verify live stock and reserve your product in the cart. May I put you on a quick 2-minute hold while I set up your order? I'll be back with you in just a moment!`,
+    rule: `Keep the conversation moving toward closing. Never leave the customer on hold without permission and without explaining you are reserving stock for their cart.` },
+  { id: 6, steps: "06-07", phase: 2, title: "Fulfillment Strategy (Pickup vs. Delivery)",
+    script: `Would you prefer the convenience of home delivery, or would you like to pick this up at your nearest Lowe's store? If Pickup: Fantastic! Which store location works best, and what date would you like to collect your item? If Delivery: Excellent choice! Please confirm your full delivery street address and zip code so I can calculate the fastest delivery date.`,
+    rule: `Pickup needs store + date; delivery needs full street address + zip code.` },
+  { id: 7, steps: "08", phase: 2, title: "Customer Information Capture",
+    script: `We are just one quick step away from securing this order! To ensure you receive instant tracking updates and receipts, could you confirm your full name, primary phone number, email address, and billing address?`,
+    rule: `Full name, primary phone, email and billing address.` },
+  { id: 8, steps: "09", phase: 2, title: "Cross-Selling (Required Installation Parts & Accessories)",
+    script: `To guarantee your new [Product] works properly and safely right out of the box, manufacturer guidelines require [Specific Required Accessories/Connectors]. I'll go ahead and add those required parts into your cart now so you don't run into any delay on installation day!`,
+    rule: `MANDATORY cross-sell when the product needs parts: never skip required hoses, power cords or kit attachments; present them as necessary for standard warranty and installation.` },
+  { id: 9, steps: "10", phase: 2, title: "Upselling Services (Haul Away, Installation & Bundles)",
+    script: `Haul Away: "Would you like our delivery team to unbox and haul away your old appliance for safe disposal?" Installation: "We can also schedule professional Lowe's installation so everything is hooked up seamlessly. Shall I include that today?" Better Together Bundle: "Customers purchasing this item often bundle it with [Complementary Product/Protection Plan] for additional bundle savings. Would you like me to add that as well?"`,
+    rule: `Haul away only applies to appliance replacement with delivery. Pitch with an assumptive, positive tone.` },
+  { id: 10, steps: "11-12", phase: 2, title: "Contact Preference & Fulfillment Logistics Coding",
+    script: `What is your preferred contact method for real-time order and delivery status updates - text message or email? ... Perfect! Based on your item's dimensions and weight, I've assigned the most efficient fulfillment method: [PL / LD / PD].`,
+    rule: `PL = Store Parcel Pickup (customer picks up at store, earliest available date auto-selected). LD = Lowe's Direct Delivery (dedicated team; heavy appliances >150 lbs or fragile oversized items). PD = Parcel / 3rd Party Carrier (standard parcel shipping; free delivery on qualified appliances).` },
+  { id: 11, steps: "13", phase: 3, core: true, title: "Full Breakdown & Savings Pitch",
+    script: `Here is the complete breakdown of your order before we finalize payment: Item price is $[X], necessary setup parts are $[X], applicable taxes are $[X], and you are saving a total of $[X] today! Your final total comes to $[X].`,
+    rule: `Must come BEFORE the payment link.` },
+  { id: 12, steps: "14", phase: 3, core: true, title: "Secure Text-To-Pay Link Execution",
+    script: `To keep your credit card information 100% secure, I am sending an encrypted Text-to-Pay link directly to your mobile phone. Can you confirm your cell phone number? ... Perfect, I've sent it! Please open the link on your phone screen to complete the payment.`,
+    rule: `Never take card numbers in the chat. Also share the security Terms & Conditions with the Text-to-Pay.` },
+  { id: 13, steps: "15", phase: 3, title: "Payment Declined / Error Recovery",
+    script: `It looks like the payment link didn't go through on the first attempt. No worries at all! This usually happens if there's a quick bank security check or a small typo in the card info. I can resend a fresh link, or we can try a different card if you prefer?`,
+    rule: `Only applies if the payment fails.` },
+  { id: 14, steps: "16-17", phase: 3, core: true, title: "Order Recap & SSO Self-Service Offer",
+    script: `Congratulations, your order is officially confirmed! Your order confirmation number is #[XXXXX]. You can easily monitor your delivery in real-time or view your receipt by logging into your Lowe's Account at Lowes.com/OrderStatus.`,
+    rule: `Always state the confirmation number twice and verify the customer received the digital receipt link.` },
+  { id: 15, steps: "18-19", phase: 3, core: true, title: "Final Assistance Check & Sales Closing",
+    script: `Is there any other project or item I can help you locate today while I have your file open? ... Thank you so much for shopping at Lowe's, [Customer Name]! We appreciate your business and hope you enjoy your new purchase. Have a wonderful day!`,
+    rule: `Reiterate key savings or discounts applied before ending.` }
+];
+const FLOW_LABEL = { on_track: "On track", skipped_step: "Step skipped", out_of_order: "Out of order", off_flow: "Off flow" };
+const flowStep = id => CALL_FLOW.find(s => s.id === id);
+let flowState = {}, flowCurrent = 0; // flowState[id] = "done" | "skipped"
+
+// ---------- ESTADO ----------
+let modelQueue = [], chatLog = [], idleTimer = null;
+let authQuery = false; // false = header x-goog-api-key, true = ?key=
+let busy = false, session = 0, agentTurns = 0, idx = 0, current = null;
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Envía la petición con el header x-goog-api-key o con ?key= según authQuery
+function geminiFetch(path, opts = {}) {
+  const key = getKey(); // se lee de localStorage en el momento de la petición
+  const sep = path.includes("?") ? "&" : "?";
+  const url = API + path + (authQuery ? sep + "key=" + encodeURIComponent(key) : "");
+  const headers = Object.assign({}, opts.headers || {});
+  if (!authQuery) headers["x-goog-api-key"] = key;
+  return fetch(url, Object.assign({}, opts, { headers }));
+}
+
+// ---------- API KEY (modal + localStorage) ----------
+const KEY_STORE = "gemini_key";
+let memKey = ""; // respaldo por si el navegador bloquea localStorage
+const cleanKey = s => String(s || "").replace(/[^\x21-\x7E]|["'`]/g, ""); // quita espacios, comillas y caracteres invisibles
+function getKey() {
+  let k = "";
+  try { k = localStorage.getItem(KEY_STORE) || ""; } catch (e) {}
+  return cleanKey(k || memKey);
+}
+function storeKey(k) {
+  memKey = k;
+  try { k ? localStorage.setItem(KEY_STORE, k) : localStorage.removeItem(KEY_STORE); } catch (e) {}
+}
+function openKeyModal(message) {
+  const has = !!getKey();
+  $("key-msg").style.color = "";
+  $("key-msg").textContent = message || "";
+  $("key-input").value = "";
+  $("key-cancel").style.display = has ? "inline-block" : "none";
+  $("key-delete").style.display = has ? "inline-block" : "none";
+  $("key-modal").style.display = "flex";
+  setTimeout(() => $("key-input").focus(), 50);
+}
+function closeKeyModal() { $("key-modal").style.display = "none"; }
+function saveKey() {
+  const k = cleanKey($("key-input").value);
+  if (k.length < 20) { $("key-msg").style.color = ""; $("key-msg").textContent = "Pega una API key válida de Google AI Studio."; return; }
+  storeKey(k); modelQueue = []; authQuery = false;
+  closeKeyModal();
+  if (!current || !chatLog.length) loadScenario(); // arranca (o reintenta) el chat si aún no hay mensajes
+}
+async function testKey() {
+  const k = cleanKey($("key-input").value), m = $("key-msg");
+  if (k) { storeKey(k); modelQueue = []; authQuery = false; }
+  m.style.color = "#555"; m.textContent = "Probando conexión…";
+  const t0 = performance.now();
+  try {
+    await callGemini({ contents: [{ role: "user", parts: [{ text: "Reply with the single word OK." }] }], generationConfig: { temperature: 0 } });
+    m.style.color = "#1b7f3b";
+    m.textContent = "✅ Conexión OK en " + ((performance.now() - t0) / 1000).toFixed(1) + " s · " + $("model-status").textContent;
+  } catch (e) { m.style.color = "#b71c1c"; m.textContent = "❌ " + e.message; }
+}
+function deleteKey() { storeKey(""); modelQueue = []; openKeyModal("Clave eliminada. Pega una nueva para continuar."); }
+function checkKeyError(msg) {
+  if (/API key not valid|API_KEY_INVALID|API key expired/i.test(msg || "")) {
+    modelQueue = [];
+    const err = new Error("La API key no es válida. Pulsa ⚙️ (arriba a la derecha) y pega una nueva.");
+    err.fatal = true;
+    throw err;
+  }
+}
+
+// ---------- MODELOS: se detectan solos con ListModels ----------
+async function discoverModels() {
+  if (modelQueue.length) return;
+  if (!getKey()) { const err = new Error("Falta la API key. Pulsa ⚙️ (arriba a la derecha)."); err.fatal = true; throw err; }
+  let names = [];
+  try {
+    const list = () => { const c = new AbortController(); setTimeout(() => c.abort(), 10000); return geminiFetch("/models?pageSize=200", { signal: c.signal }); };
+    let res = await list();
+    let data = await res.json();
+    if (res.status === 401 || res.status === 403) {   // probar el otro método de autenticación
+      authQuery = !authQuery;
+      res = await list();
+      data = await res.json();
+    }
+    if (data.error) checkKeyError(data.error.message);
+    const skip = /lite|image|tts|audio|live|embed|vision|robotics|computer|thinking|exp|8b|tuning/i;
+    names = (data.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map(m => m.name.replace("models/", ""))
+      .filter(n => /^gemini-\d+(\.\d+)?-flash/.test(n) && !skip.test(n))
+      .map(n => ({ n, v: parseFloat(n.match(/^gemini-(\d+(?:\.\d+)?)/)[1]), p: /preview/.test(n) ? 1 : 0 }))
+      .sort((a, b) => (a.p - b.p) || (b.v - a.v))   // estables primero, y la versión más nueva primero
+      .map(o => o.n);
+  } catch (e) { if (e.fatal) throw e; }
+  modelQueue = names.length ? [...names, "gemini-flash-latest"] : [...FALLBACK_MODELS];
+}
+
+// Llama a Gemini; si un modelo no existe o está saturado, prueba el siguiente automáticamente.
+async function callGemini(body) {
+  await discoverModels();
+  let lastErr = "sin respuesta", swapped = false, timeouts = 0, thinkOn = true;
+  body.generationConfig = body.generationConfig || {};
+  while (modelQueue.length) {
+    const model = modelQueue[0];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // Los modelos 3.x "piensan" mucho por defecto y tardan: pedimos poco razonamiento para que respondan rápido
+      if (thinkOn) body.generationConfig.thinkingConfig = { thinkingLevel: "LOW" };
+      else delete body.generationConfig.thinkingConfig;
+      let res, data;
+      const t0 = performance.now(), ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 35000);
+      $("model-status").textContent = "Model: " + model + " · waiting…";
+      try {
+        res = await geminiFetch(`/models/${model}:generateContent`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body), signal: ctrl.signal
+        });
+        data = await res.json();
+      } catch (e) {
+        if (e.name === "AbortError") {
+          lastErr = `${model} no respondió en 35 s`;
+          if (++timeouts >= 2) throw new Error("Gemini no respondió a tiempo (" + lastErr + "). Prueba de nuevo o usa ⚙️ → Probar.");
+          break; // probar el siguiente modelo
+        }
+        throw new Error("No se pudo conectar con la API de Gemini: " + e.message);
+      } finally { clearTimeout(timer); }
+
+      if (res.ok) {
+        const text = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").trim();
+        if (text) { $("model-status").textContent = "Model: " + model + " · " + ((performance.now() - t0) / 1000).toFixed(1) + " s"; return text; }
+        lastErr = data.promptFeedback?.blockReason ? "respuesta bloqueada (" + data.promptFeedback.blockReason + ")" : "respuesta vacía";
+        break;
+      }
+      const msg = data.error?.message || res.statusText;
+      checkKeyError(msg);
+      if (res.status === 400 && thinkOn && /thinking/i.test(msg)) { thinkOn = false; attempt--; continue; } // este modelo no admite thinkingLevel
+      if ((res.status === 401 || res.status === 403) && !swapped) {   // alternar header <-> ?key= una vez
+        swapped = true; authQuery = !authQuery; attempt--; continue;
+      }
+      lastErr = `${res.status} ${model}: ${msg}`;
+      console.warn(lastErr);
+      if ([429, 500, 503].includes(res.status) && attempt === 0) { await sleep(2000); continue; }
+      break;
+    }
+    if (modelQueue[0] === model) modelQueue.shift(); // este modelo falló: probar el siguiente (sin saltarse otro si hubo llamadas en paralelo)
+  }
+  throw new Error("No se pudo obtener respuesta de Gemini (" + lastErr + ").");
+}
+
+// ---------- PROMPTS ----------
+function customerPrompt() {
+  const c = current;
+  return `You are role-playing a REAL customer chatting with a Lowe's customer care agent on lowes.com. The person typing as the agent is a trainee.
+
+WHO YOU ARE
+Name: ${c.name}. Address: ${c.address}, ${c.state} ${c.zip}.
+Personality: ${c.type}.
+Items in your cart: ${c.cart.map(i => i.title).join("; ")}.
+Situation and behavior: ${c.persona}
+Opening (only for your very first message): ${c.opening}
+
+HOW TO ACT
+- Stay in character 100%. Never mention AI, simulation, training, QA or a coach.
+- Write like a real person in a chat window: usually 1-3 short sentences, natural wording, no markdown, no quotation marks, no name prefix.
+- Only know what this customer would really know. Answer what the agent asks and reveal other details gradually; never solve the problem for the agent or dump all information at once.
+- React to the quality of service. Generic, scripted, slow or unempathetic replies make you more frustrated or hesitant. Warm, specific replies that take ownership and give clear next steps make you relax and cooperate. Do not become satisfied until the agent truly resolves your need.
+- Never invent Lowe's policies as facts. If the agent states one, react like a normal customer (accept it, doubt it, or ask a follow-up).
+- If the agent sets up the order: ask about total or pickup/delivery timing if they haven't said it, be willing to pay with a text-to-pay link if offered (you may ask once if it is secure), never type card numbers in chat, and respond naturally to add-on offers (accept if valuable and confidently presented, hesitate if pushy or vague).
+- If asked for personal details (full name, phone, email, billing/delivery address, store, preferred date, contact preference), give plausible fictional details consistent with your profile and keep them consistent. Never give real card numbers.
+- When your need is fully solved, thank the agent and wrap up. Otherwise keep the conversation moving with a realistic next message.
+- Reply in English with ONLY the customer's next message.`;
+}
+
+function flowReference() {
+  return CALL_FLOW.map(f => `${f.id}. [Step ${f.steps}] ${f.title}${f.core ? " (CORE)" : ""} | Official script: ${f.script} | Rules: ${f.rule}`).join("\n");
+}
+
+function coachPrompt() {
+  const c = current;
+  return `You are a senior Customer Satisfaction (CSAT) and sales-quality coach with 15+ years leading chat support teams, coaching a trainee agent at Lowe's Customer Care in real time. You are strict but encouraging: honest, specific, actionable, never generic.
+
+Customer: ${c.name} (${c.type}). Cart: ${c.cart.map(i => i.title).join("; ")}.
+
+LOWE'S SALES CALL FLOW DATABASE (source of truth for inbound sales and order placement; the numbers below are flow ids):
+${flowReference()}
+
+CALL FLOW RULES
+- Not every step is required in every case: the flow varies with the situation. Skipping a step is fine when it does not apply (e.g. a customer who already knows the item skips discovery 4; pickup orders skip delivery address and haul away; products with no required parts skip 8; 13 only happens if payment fails; 5 only when the agent needs time in the system).
+- CORE steps (1, 2, 11, 12, 14, 15) should appear in virtually every completed sale. Step 8 (required parts) is mandatory whenever the product needs accessories.
+- Expected order: Phase 1 (1-5) -> Phase 2 (6-10) -> Phase 3 (11-15). Fulfillment (6) and customer info (7) should be settled before the breakdown (11); the breakdown (11) must come before the payment link (12); the confirmation recap (14) only after payment.
+- Answering the customer's questions, verifying information, holding statements and empathy belong to the current step: do NOT flag them as off flow.
+- "flow.covered": flow ids that the agent's LAST message actually performs (one message may cover several). Empty if none.
+- "flow.current": the flow id the conversation is in now (0 if no step matches).
+- "flow.skipped": flow ids that were applicable and expected by now, were never done (see the tracker given with the transcript) and are not justified. Be conservative: never list a step that does not apply.
+- "flow.status": "on_track" when the last message fits the expected step/sequence; "skipped_step" when the agent moves ahead while skipping an applicable or core step; "out_of_order" when a step happens too early or too late; "off_flow" when the message does not belong to any step and does not move the sale forward (chit-chat, ignoring the sale, wrong process, unsupported promises).
+- "flow.alert": ONE short sentence (max 25 words) naming exactly what is wrong and what step to go back to; empty string if on_track.
+- "flow.next": 1-2 flow ids the agent should do next.
+
+Evaluate ONLY the agent's LAST message, judged in the context of the whole transcript and the flow tracker. Also coach on:
+1. Empathy in EVERY turn, specific to what this customer said, not a repeated canned apology. With angry customers: de-escalate and take ownership first, solve second.
+2. Positive, confident language: say what you CAN do; avoid "can't/unfortunately/policy" with no alternative; no blame, no jargon, correct grammar, professional tone, concise messages.
+3. Probing: one clear question at a time; never ask what the customer already said or what is visible in the cart/profile.
+4. Accuracy: never state or promise facts (dimensions, policies, dates, prices) unless verified; reward "let me verify" behavior and flag guesses.
+5. Closing quality: Text-to-Pay with security Terms & Conditions, item summary, and an ASSUMPTIVE, POSITIVE upsell (Better Together / LPP). Do not mark closing items as missed before the agent reaches the closing stage.
+
+Output rules:
+- "phase": the current stage of the conversation in plain words.
+- "score": 0-100 for this message, including call-flow adherence (90+ only if truly excellent).
+- "whispers": 2-4 items. "pillar" is one of: Flow, Empathy, Probing, Resolution, Tone, Accuracy, Text-to-Pay, T&C, Summary, Assumptive Upsell. "status" is pass, missed or tip. "message" is ONE short coaching sentence (max 25 words) that refers to what the agent actually wrote. Do not repeat the flow alert.
+- "better_reply": a brief example of a stronger agent message if score < 85, otherwise an empty string.
+- Write all coaching in English.`;
+}
+
+const COACH_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    phase: { type: "STRING" },
+    score: { type: "INTEGER" },
+    flow: {
+      type: "OBJECT",
+      properties: {
+        covered: { type: "ARRAY", items: { type: "INTEGER" } },
+        current: { type: "INTEGER" },
+        skipped: { type: "ARRAY", items: { type: "INTEGER" } },
+        status: { type: "STRING", enum: ["on_track", "skipped_step", "out_of_order", "off_flow"] },
+        alert: { type: "STRING" },
+        next: { type: "ARRAY", items: { type: "INTEGER" } }
+      },
+      required: ["covered", "current", "skipped", "status", "alert", "next"]
+    },
+    whispers: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { pillar: { type: "STRING" }, status: { type: "STRING", enum: ["pass", "missed", "tip"] }, message: { type: "STRING" } },
+        required: ["pillar", "status", "message"]
+      }
+    },
+    better_reply: { type: "STRING" }
+  },
+  required: ["phase", "score", "flow", "whispers", "better_reply"]
+};
+
+// ---------- LLAMADAS DE IA ----------
+function customerContents() {
+  const turns = [["user", "[SYSTEM NOTE] The chat just connected. Send your first message to the agent."]];
+  chatLog.forEach(m => turns.push([
+    m.who === "customer" ? "model" : "user",
+    m.who === "system" ? "[SYSTEM NOTE] " + m.text : m.text
+  ]));
+  const out = [];
+  turns.forEach(([role, text]) => {           // une turnos seguidos del mismo rol
+    const last = out[out.length - 1];
+    if (last && last.role === role) last.parts[0].text += "\n" + text;
+    else out.push({ role, parts: [{ text }] });
+  });
+  return out;
+}
+
+async function askCustomer() {
+  const text = await callGemini({
+    systemInstruction: { parts: [{ text: customerPrompt() }] },
+    contents: customerContents(),
+    generationConfig: { temperature: 1 }
+  });
+  return text.replace(/^\s*(customer|cliente)\s*:\s*/i, "").replace(/^["“]+|["”]+$/g, "").trim();
+}
+
+async function askCoach() {
+  const transcript = chatLog.map(m => (m.who === "agent" ? "AGENT" : m.who === "customer" ? "CUSTOMER" : "NOTE") + ": " + m.text).join("\n");
+  const raw = await callGemini({
+    systemInstruction: { parts: [{ text: coachPrompt() }] },
+    contents: [{ role: "user", parts: [{ text: `${flowSummary()}\nTRANSCRIPT SO FAR (agent turn #${agentTurns}; the last AGENT line is the message to evaluate):\n${transcript}` }] }],
+    generationConfig: { temperature: 0.3, responseMimeType: "application/json", responseSchema: COACH_SCHEMA }
+  });
+  return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+}
+
+// ---------- UI ----------
+function addMsg(kind, text) {
+  const box = $("chat-messages"), d = document.createElement("div");
+  d.className = "message msg-" + kind;
+  d.textContent = text;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setBusy(b) {
+  busy = b;
+  $("agent-input").disabled = b;
+  $("send-btn").disabled = b;
+  $("typing-indicator").style.display = b ? "block" : "none";
+  if (!b) $("agent-input").focus();
+}
+
+function showWhispers(r, n) {
+  const g = document.createElement("div");
+  const score = Math.max(0, Math.min(100, Number(r.score) || 0));
+  let html = `<div class="turn-head">Message #${n} · ${esc(r.phase || "")} · <b>${score}/100</b></div>`;
+  const f = r.flow;
+  if (f) {
+    const cur = flowStep(f.current);
+    const where = cur ? `Step ${cur.steps} · ${cur.title}` : "no matching step";
+    html += whisperCard(f.status === "on_track" ? "pass" : "missed", "Call Flow · " + (FLOW_LABEL[f.status] || f.status), where + (f.alert ? " — " + f.alert : ""));
+    const nx = (f.next || []).map(flowStep).filter(Boolean).slice(0, 2);
+    if (nx.length) html += whisperCard("tip", "Next expected", nx.map(x => `Step ${x.steps} · ${x.title}`).join("  |  "));
+  }
+  (r.whispers || []).forEach(w => {
+    const st = ["pass", "missed", "tip"].includes(w.status) ? w.status : "tip";
+    html += `<div class="whisper-card ${st}"><span class="pillar">${esc(w.pillar)}</span>${esc(w.message)}</div>`;
+  });
+  if (r.better_reply) html += `<div class="whisper-card tip"><span class="pillar">Try something like</span>“${esc(r.better_reply)}”</div>`;
+  g.innerHTML = html;
+  $("whispers-container").prepend(g);
+}
+
+function whisperCard(cls, title, text) {
+  return `<div class="whisper-card ${cls}"><span class="pillar">${esc(title)}</span>${esc(text)}</div>`;
+}
+
+// ---------- CALL FLOW: tracker, barra de estado y alerta ----------
+function flowSummary() {
+  const ids = st => CALL_FLOW.filter(f => flowState[f.id] === st).map(f => f.id).join(", ") || "none";
+  return `FLOW TRACKER BEFORE THIS MESSAGE: done = [${ids("done")}]; skipped = [${ids("skipped")}].`;
+}
+
+function renderTracker() {
+  const box = $("flow-tracker");
+  if (!box) return;
+  const names = { 1: "Phase 1 · Greeting, Discovery & Product", 2: "Phase 2 · Order Structuring & Upsells", 3: "Phase 3 · Summary, Closing & Post-sale" };
+  let html = "", ph = 0;
+  CALL_FLOW.forEach(f => {
+    if (f.phase !== ph) { ph = f.phase; html += `<div class="flow-phase">${names[ph]}</div>`; }
+    const st = f.id === flowCurrent ? "current" : (flowState[f.id] || "");
+    html += `<div class="flow-step ${st}" title="${esc(f.script)}"><b>${f.steps}${f.core ? "*" : ""}</b><span>${esc(f.title)}</span></div>`;
+  });
+  box.innerHTML = html;
+}
+
+function applyFlow(f) {
+  const ok = id => !!flowStep(id);
+  (f.skipped || []).filter(ok).forEach(id => { if (flowState[id] !== "done") flowState[id] = "skipped"; });
+  (f.covered || []).filter(ok).forEach(id => { flowState[id] = "done"; });
+  flowCurrent = ok(f.current) ? f.current : 0;
+  renderTracker();
+  const bar = $("flow-bar"), cur = flowStep(flowCurrent);
+  const where = cur ? `Step ${cur.steps} · ${cur.title}` : "no matching step";
+  if (f.status === "on_track") {
+    bar.className = "flow-bar ok";
+    bar.textContent = "✅ On call flow · " + where;
+  } else {
+    bar.className = "flow-bar " + (f.status === "off_flow" ? "bad" : "warn");
+    bar.textContent = `⚠️ CALL FLOW ALERT (${FLOW_LABEL[f.status] || f.status}): ${f.alert || "The sales call flow is not being followed."} · ${where}`;
+  }
+}
+
+// ---------- FLUJO ----------
+async function customerTurn(sid) {
+  setBusy(true);
+  try {
+    const reply = await askCustomer();
+    await sleep(Math.min(3500, 500 + reply.length * 20)); // simula el tiempo de escritura
+    if (sid !== session) return;
+    chatLog.push({ who: "customer", text: reply });
+    addMsg("customer", reply);
+    resetIdleTimer(sid);
+  } catch (e) {
+    if (sid === session) { addMsg("error", "Error: " + e.message); if (e.fatal) openKeyModal(e.message); }
+  } finally {
+    if (sid === session) setBusy(false);
+  }
+}
+
+async function sendAgentMessage() {
+  const input = $("agent-input"), text = input.value.trim();
+  if (!text || busy) return;
+  input.value = "";
+  clearTimeout(idleTimer);
+  chatLog.push({ who: "agent", text });
+  addMsg("agent", text);
+  agentTurns++;
+  const sid = session, n = agentTurns;
+  askCoach().then(
+    r => { if (sid === session) { showWhispers(r, n); if (r.flow) applyFlow(r.flow); } },
+    e => { if (sid === session) $("whispers-container").insertAdjacentHTML("afterbegin", whisperCard("missed", "Coach unavailable", e.message)); }
+  );
+  await customerTurn(sid);
+}
+
+function resetIdleTimer(sid) {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if (sid !== session || busy) return;
+    chatLog.push({ who: "system", text: "The agent has not replied for 2 minutes. Send one short, in-persona message asking if they are still there." });
+    addMsg("system", "2 minutes without a reply…");
+    customerTurn(sid);
+  }, IDLE_MS);
+}
+
+function loadScenario() {
+  session++;
+  clearTimeout(idleTimer);
+  current = scenarios[idx % scenarios.length];
+  chatLog = []; agentTurns = 0; flowState = {}; flowCurrent = 0; $("flow-bar").className = "flow-bar";
+  $("chat-messages").innerHTML = "";
+  $("whispers-container").innerHTML = whisperCard("tip", "System ready", "Follow Lowe's Sales Call Flow (tracker on the left). Not every step applies to every case; you will get an alert if a step is skipped, out of order, or the flow is abandoned. Empathy is required in every turn.");
+  $("customer-info-container").innerHTML = `
+    <div class="cust-info">
+      <p><span>Name:</span> ${esc(current.name)}</p>
+      <p><span>Address:</span> ${esc(current.address)}</p>
+      <p><span>Zip Code:</span> ${esc(current.zip)} (${esc(current.state)})</p>
+      <p><span>Persona:</span> ${esc(current.type)}</p>
+    </div>
+    <hr style="border:0;border-top:1px solid #ddd;margin:15px 0">
+    <p><span>Active Cart:</span></p>
+    ${current.cart.map(i => `<div class="cart-item"><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a></div>`).join("")}`;
+  $("customer-info-container").insertAdjacentHTML("beforeend", '<hr style="border:0;border-top:1px solid #ddd;margin:15px 0"><p><span>Sales Call Flow</span><br><small>green = done · amber = skipped · blue = current · * = core step · hover for the official script</small></p><div id="flow-tracker"></div>');
+  renderTracker();
+  $("chat-title").textContent = "Chatting with " + current.name;
+  customerTurn(session);
+}
+
+function nextScenario() { idx++; loadScenario(); }
+
+window.onload = () => { if (getKey()) loadScenario(); else openKeyModal("Introduce tu API key para empezar."); };
+</script>
+</body>
+</html>
